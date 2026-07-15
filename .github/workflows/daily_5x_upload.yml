@@ -88,5 +88,6 @@ jobs:
           git add -f output/history/all_generated_idioms.json
           if ! git diff --staged --quiet; then
             git commit -m "Update idioms history - Run #${{ github.run_number }}"
+            git pull --rebase
             git push
           fi
