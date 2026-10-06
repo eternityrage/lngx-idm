@@ -109,11 +109,11 @@ def generate_word_data(num_words: int = WORDS_PER_VIDEO) -> list:
                 context_words = list(set(random_seed + recent_100))
                 random.shuffle(context_words)
             elif len(all_used) > 100:
-                context_words = all_used[-100:]
+                context_words = list(all_used[-100:])
             else:
-                context_words = all_used
-            context_words.extend(collected)
-            used_list = ", ".join(context_words) if context_words else "(none yet)"
+                context_words = list(all_used)
+            context_words.extend([c.get("word") or c.get("idiom") or str(c) for c in collected if isinstance(c, dict)])
+            used_list = ", ".join(str(w) for w in context_words if isinstance(w, str)) if context_words else "(none yet)"
             prompt = f"""Generate exactly 20 unique English idioms from the {category} domain.
 
 STRICT RULES:
@@ -183,11 +183,28 @@ Return ONLY the JSON array. Nothing else."""
                 print(f"[api] HTTP {status} indicates auth/payment issue...")
         except Exception as e:
             print(f"[api] Attempt {attempt + 1}/{max_attempts} FAILED: {type(e).__name__}: {e}")
+    if len(collected) < num_words:
+        print("[fallback] Checking curated fallback idioms bank for unused idioms...")
+        fallback_idioms = [
+            {"word": "burn the midnight oil", "particle": "the", "part_of_speech": "idiom", "definition": "to stay up late working or studying", "example": "She burned the midnight oil before finals.", "origin": "From reading by oil lamp at night.", "fun_fact": "Commonly used in academic contexts."},
+            {"word": "bite the bullet", "particle": "the", "part_of_speech": "idiom", "definition": "to face a painful situation with courage", "example": "I decided to bite the bullet and apologize.", "origin": "Soldiers bit on lead bullets during surgery.", "fun_fact": "Originated before anesthesia was invented."},
+            {"word": "break the ice", "particle": "the", "part_of_speech": "idiom", "definition": "to relieve social tension", "example": "He told a joke to break the ice.", "origin": "Ships breaking through ice to open trade routes.", "fun_fact": "Widely used in business meetings."},
+            {"word": "spill the beans", "particle": "the", "part_of_speech": "idiom", "definition": "to reveal a secret prematurely", "example": "Don't spill the beans about the party.", "origin": "Ancient voting with black and white beans.", "fun_fact": "Dropping the jar revealed the votes early."},
+            {"word": "under the weather", "particle": "the", "part_of_speech": "idiom", "definition": "feeling slightly sick or unwell", "example": "I'm feeling under the weather today.", "origin": "Sailors going below deck during storms.", "fun_fact": "Below deck sheltered them from bad weather."}
+        ]
+        for fb in fallback_idioms:
+            w_clean = fb["word"].lower().strip()
+            if w_clean not in used_set:
+                collected.append(fb)
+                used_set.add(w_clean)
+                print(f"  [fallback] Added unused curated idiom: '{w_clean}'")
+                if len(collected) >= num_words:
+                    break
     if collected:
-        print(f"[api] WARNING: Only got {len(collected)}/{num_words} after {max_attempts} attempts, using partial set")
-        add_words_to_history([w["word"] for w in collected])
-        return collected
-    raise RuntimeError("API failed all attempts - cannot generate idioms.")
+        print(f"[api] Using {len(collected)} items")
+        add_words_to_history([w["word"] for w in collected[:num_words]])
+        return collected[:num_words]
+    raise RuntimeError("API failed all attempts and no unused fallback idioms available.")
 
 def create_background():
     from PIL import Image, ImageDraw
